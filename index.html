@@ -1,100 +1,115 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Flying Car Game - Hogwarts Flight</title>
-  <style>
-    body { margin:0; overflow:hidden; background:#9dd9ff; }
-    #gameCanvas { display:block; margin:auto; background:#87ceeb; }
-    #clue {
-      position: absolute; top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(255,255,255,0.9);
-      padding: 20px 30px;
-      border-radius: 15px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.3);
-      font-size: 1.2em; text-align: center;
-      display: none;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Flying Car Game - Hogwarts Flight</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: #9dd9ff;
+  }
+  #gameCanvas {
+    display: block;
+    margin: auto;
+    background: #87ceeb;
+  }
+  #clue {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255,255,255,0.9);
+    padding: 20px 30px;
+    border-radius: 15px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    font-size: 1.2em;
+    text-align: center;
+    display: none;
+  }
+</style>
 </head>
 <body>
-<canvas id="gameCanvas" width="480" height="640"></canvas>
+<canvas id="gameCanvas"></canvas>
 <div id="clue">🕵️‍♂️ Clue: Minus stotri.</div>
-
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+
 const carImg = new Image();
 carImg.src = "car.png";
-const startText = {
-  title: "🧙 HP 3: The Chamber 🪄",
-  subtitle: "GCBF1BN, by Enra13 & Ammy Holmes",
-  description: "Press SPACE to start your flight to Hogwarts!"
-};
 
 // --- Game state ---
 let carY, velocity, obstacles, frame, gameOver, started;
 const gravity = 0.4;
 const jump = -7;
 let backgroundOffset = 0;
+let timeOfDay = 0; // 0 = day, 1 = night
+let distance = 0;
+let scaleFactor = 1; // will calculate on resize
 
 // --- Background offscreen canvas ---
-const bgWidth = 1920;  // very wide background
+const bgWidth = 1920;
 const bgHeight = 640;
 const bgCanvas = document.createElement("canvas");
 bgCanvas.width = bgWidth;
 bgCanvas.height = bgHeight;
 const bgCtx = bgCanvas.getContext("2d");
 
-// --- Draw static background (once) ---
+// --- Build static background ---
 function buildBackground() {
-  // Sky gradient
-  const sky = bgCtx.createLinearGradient(0, 0, 0, bgHeight);
-  sky.addColorStop(0, "#87ceeb");
-  sky.addColorStop(1, "#ccefff");
-  bgCtx.fillStyle = sky;
-  bgCtx.fillRect(0, 0, bgWidth, bgHeight);
+    // Sky gradient
+    const sky = bgCtx.createLinearGradient(0,0,bgWidth,bgHeight);
+    sky.addColorStop(0, "#87ceeb");
+    sky.addColorStop(1, "#ccefff");
+    bgCtx.fillStyle = sky;
+    bgCtx.fillRect(0, 0, bgWidth, bgHeight);
 
-  // Hills
-  const hillColors = ["#4caf50", "#66bb6a", "#81c784"];
-  hillColors.forEach((color, i) => {
-    const amplitude = 40 + i * 25;
-    const offsetY = 100 - i * 20;
-    bgCtx.fillStyle = color;
-    bgCtx.beginPath();
-    bgCtx.moveTo(0, bgHeight);
-    for (let x = 0; x <= bgWidth; x += 20) {
-      const y = bgHeight - (amplitude * Math.sin((x + i * 100) * 0.004)) - offsetY;
-      bgCtx.lineTo(x, y);
+    // Hills
+    const hillColors = ["#4caf50","#66bb6a","#81c784"];
+    hillColors.forEach((color,i) => {
+        const amplitude = 40 + i*25;
+        const offsetY = 100 - i*20;
+        bgCtx.fillStyle = color;
+        bgCtx.beginPath();
+        bgCtx.moveTo(0,bgHeight);
+        for(let x=0;x<=bgWidth;x+=20){
+            const y = bgHeight - (amplitude * Math.sin((x + i*100)*0.004)) - offsetY;
+            bgCtx.lineTo(x,y);
+        }
+        bgCtx.lineTo(bgWidth,bgHeight);
+        bgCtx.closePath();
+        bgCtx.fill();
+    });
+
+    // Clouds
+    bgCtx.fillStyle="white";
+    for(let i=0;i<20;i++){
+        const x = Math.random()*bgWidth;
+        const y = Math.random()*200+50;
+        const size = Math.random()*40+20;
+        bgCtx.beginPath();
+        bgCtx.arc(x,y,size,0,Math.PI*2);
+        bgCtx.arc(x+size*0.8,y+10,size*0.8,0,Math.PI*2);
+        bgCtx.arc(x-size*0.8,y+10,size*0.8,0,Math.PI*2);
+        bgCtx.fill();
     }
-    bgCtx.lineTo(bgWidth, bgHeight);
-    bgCtx.closePath();
-    bgCtx.fill();
-  });
-
-  // Clouds
-  bgCtx.fillStyle = "white";
-  for (let i = 0; i < 20; i++) {
-    const x = Math.random() * bgWidth;
-    const y = Math.random() * 200 + 50;
-    const size = Math.random() * 40 + 20;
-    bgCtx.beginPath();
-    bgCtx.arc(x, y, size, 0, Math.PI * 2);
-    bgCtx.arc(x + size * 0.8, y + 10, size * 0.8, 0, Math.PI * 2);
-    bgCtx.arc(x - size * 0.8, y + 10, size * 0.8, 0, Math.PI * 2);
-    bgCtx.fill();
-  }
 }
 
-// --- Draw background scrolling ---
-function drawBackground(speed = 0) {
-  backgroundOffset += speed;
-  const offsetX = backgroundOffset % bgWidth;
+// --- Draw background with day-to-night transition ---
+function drawBackground(speed=0){
+    backgroundOffset += speed;
+    const offsetX = backgroundOffset % bgWidth;
+    timeOfDay = Math.min(1, distance / 3000); // progress from day to night
 
-  // Draw the background twice for seamless scroll
-  ctx.drawImage(bgCanvas, -offsetX, 0);
-  ctx.drawImage(bgCanvas, bgWidth - offsetX, 0);
+    // Sky color lerp: day (#87ceeb) -> night (#001d3d)
+    const currentSky = lerpColor("#87ceeb","#001d3d",timeOfDay);
+    ctx.fillStyle = currentSky;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // Draw static hills and clouds
+    ctx.drawImage(bgCanvas,-offsetX,0,bgWidth*scaleFactor,bgHeight*scaleFactor);
+    ctx.drawImage(bgCanvas,bgWidth-offsetX,0,bgWidth*scaleFactor,bgHeight*scaleFactor);
 }
 
 // --- Obstacles ---
@@ -102,173 +117,188 @@ const baseGapY = 250;
 const horizontalSpacing = 300;
 const offsets = [];
 const segments = [
-  [-80, -50, -30, -60, -40],
-  [60, 80, 70, 90],
-  [-100, -90, -70],
-  [0, 100, -80, 50],
-  [40, -60, 20, -50, 30]
+    [-80,-50,-30,-60,-40],
+    [60,80,70,90],
+    [-100,-90,-70],
+    [0,100,-80,50],
+    [40,-60,20,-50,30]
 ];
-while (offsets.length < 100) segments.forEach(s => offsets.push(...s));
+while(offsets.length < 100) segments.forEach(s=>offsets.push(...s));
 offsets.length = 100;
-const track = offsets.map((o, i) => ({
-  x: 600 + i * horizontalSpacing,
-  gapY: baseGapY + o
-}));
+const track = offsets.map((o,i)=>({x:600+i*horizontalSpacing,gapY:baseGapY+o}));
+
+// --- Utilities ---
+function lerpColor(a,b,t){
+    const ah=parseInt(a.replace('#',''),16),ar=(ah>>16)&0xff,ag=(ah>>8)&0xff,ab=ah&0xff;
+    const bh=parseInt(b.replace('#',''),16),br=(bh>>16)&0xff,bg=(bh>>8)&0xff,bb=bh&0xff;
+    const rr=Math.round(ar+(br-ar)*t),rg=Math.round(ag+(bg-ag)*t),rb=Math.round(ab+(bb-ab)*t);
+    return `rgb(${rr},${rg},${rb})`;
+}
 
 // --- Draw car ---
-function drawCar() {
-  const scale = 0.12;
-  const w = carImg.width * scale;
-  const h = carImg.height * scale;
-  const tilt = velocity * 2 * Math.PI / 180;
-  ctx.save();
-  ctx.translate(100, carY);
-  ctx.rotate(tilt);
-  ctx.drawImage(carImg, -w / 2, -h / 2, w, h);
-  ctx.restore();
+function drawCar(){
+    const scale = 0.12 * scaleFactor;
+    const w = carImg.width * scale;
+    const h = carImg.height * scale;
+    const tilt = velocity * 2 * Math.PI / 180;
+    ctx.save();
+    ctx.translate(100*scaleFactor, carY);
+    ctx.rotate(tilt);
+    ctx.drawImage(carImg,-w/2,-h/2,w,h);
+    ctx.restore();
 }
 
 // --- Draw obstacles ---
-function drawObstacles() {
-  for (const o of obstacles) {
-    // Set fill and stroke
-    ctx.fillStyle = "rgba(240, 108, 0, 0.6)"; // opaque purple
-    ctx.strokeStyle = "black";
-    ctx.lineWidth = 2; // thin white outline
+function drawObstacles(){
+    const obsW = 60 * scaleFactor;
+    const obsGap = 100 * scaleFactor;
+    for(const o of obstacles){
+        ctx.fillStyle="rgba(240,108,0,0.6)";
+        ctx.strokeStyle="black";
+        ctx.lineWidth=2*scaleFactor;
 
-    // Draw top pillar
-    ctx.beginPath();
-    ctx.rect(o.x, 0, 60, o.gapY - 100);
-    ctx.fill();
-    ctx.stroke();
+        // top
+        ctx.beginPath();
+        ctx.rect(o.x,0,obsW,o.gapY-obsGap);
+        ctx.fill(); ctx.stroke();
 
-    // Draw bottom pillar
-    ctx.beginPath();
-    ctx.rect(o.x, o.gapY + 100, 60, canvas.height - o.gapY);
-    ctx.fill();
-    ctx.stroke();
-  }
+        // bottom
+        ctx.beginPath();
+        ctx.rect(o.x,o.gapY+obsGap,obsW,canvas.height-o.gapY);
+        ctx.fill(); ctx.stroke();
+    }
 }
 
 // --- Game loop ---
-function update() {
-  if (gameOver) return;
-  frame++;
-  velocity += gravity;
-  carY += velocity;
+function update(){
+    if(gameOver) return;
+    frame++;
+    velocity += gravity;
+    carY += velocity;
 
-  const speed = 3 + frame / 800;
-  obstacles.forEach(o => o.x -= speed);
+    const speed = 3 + frame/800;
+    obstacles.forEach(o=>o.x-=speed*scaleFactor);
 
-    // Draw background first
-  drawBackground(speed);
+    drawBackground(speed*scaleFactor);
+    drawObstacles();
+    drawCar();
 
-  // Then obstacles and car
-  drawObstacles();
-  drawCar();
+    distance += speed;
 
-  // Then draw counter on top
-  const obstaclesLeft = obstacles.filter(o => o.x > -60).length;
-  ctx.fillStyle = "black";
-  ctx.font = "bold 40px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText(obstaclesLeft, canvas.width / 2, 100);
+    // counter
+    const obstaclesLeft = obstacles.filter(o=>o.x>-60*scaleFactor).length;
+    ctx.fillStyle="black";
+    ctx.font=`bold ${40*scaleFactor}px sans-serif`;
+    ctx.textAlign="center";
+    ctx.fillText(obstaclesLeft,canvas.width/2,100*scaleFactor);
 
+    // collisions
+    const obsW = 60*scaleFactor;
+    const obsGap = 100*scaleFactor;
+    for(const o of obstacles){
+        if(100*scaleFactor+25*scaleFactor > o.x && 100*scaleFactor-25*scaleFactor < o.x+obsW
+            && (carY-10*scaleFactor<o.gapY-obsGap || carY+10*scaleFactor>o.gapY+obsGap)){
+            return endGame(false);
+        }
+    }
+    if(carY<0 || carY>canvas.height) return endGame(false);
+    if(obstacles.every(o=>o.x<-obsW)) return endGame(true);
 
-  // Collision + logic
-  for (const o of obstacles) {
-    if (
-      100 + 25 > o.x &&
-      100 - 25 < o.x + 60 &&
-      (carY - 10 < o.gapY - 100 || carY + 10 > o.gapY + 100)
-    ) return endGame(false);
-  }
-
-  if (carY < 0 || carY > canvas.height) return endGame(false);
-  if (obstacles.every(o => o.x < -60)) return endGame(true);
-
-  requestAnimationFrame(update);
+    requestAnimationFrame(update);
 }
 
-function resetGame() {
-  carY = canvas.height / 2;
-  velocity = 0;
-  frame = 0;
-  backgroundOffset = 0;
-  gameOver = false;
-  started = false;
-  obstacles = track.map(o => ({ ...o }));
+// --- Reset game ---
+const startText = {
+    title:"🧙 HP 3: The Chamber 🪄",
+    subtitle:"GCBF1BN, by Enra13 & Ammy Holmes",
+    description:"Press SPACE or tap to start your flight to Hogwarts!"
+};
 
-  // Clear screen with just plain sky blue
-  ctx.fillStyle = "#87ceeb"; // sky blue
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+function resetGame(){
+    carY = canvas.height/2;
+    velocity = 0;
+    frame = 0;
+    backgroundOffset = 0;
+    gameOver = false;
+    started = false;
+    obstacles = track.map(o=>({...o}));
+    distance = 0;
 
-  // Draw title
-ctx.fillStyle = "white";
-ctx.textAlign = "center";
-
-ctx.font = "bold 36px sans-serif";
-ctx.fillText(startText.title, canvas.width / 2, canvas.height / 2 - 40);
-
-// Draw subtitle
-ctx.font = "24px sans-serif";
-ctx.fillText(startText.subtitle, canvas.width / 2, canvas.height / 2);
-
-// Draw description
-ctx.font = "18px sans-serif";
-ctx.fillText(startText.description, canvas.width / 2, canvas.height / 2 + 30);
-
+    ctx.fillStyle="#87ceeb";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="white";
+    ctx.textAlign="center";
+    ctx.font=`bold ${36*scaleFactor}px sans-serif`;
+    ctx.fillText(startText.title,canvas.width/2,canvas.height/2-40*scaleFactor);
+    ctx.font=`${24*scaleFactor}px sans-serif`;
+    ctx.fillText(startText.subtitle,canvas.width/2,canvas.height/2);
+    ctx.font=`${18*scaleFactor}px sans-serif`;
+    ctx.fillText(startText.description,canvas.width/2,canvas.height/2+30*scaleFactor);
 }
 
-// --- End ---
-function endGame(win) {
-  gameOver = true;
-  ctx.fillStyle = "rgba(0,0,0,0.6)";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "white";
-  ctx.textAlign = "center";
-  ctx.font = "28px sans-serif";
-  ctx.fillText(win ? "🏁 You made it!" : "💥 Oops!", canvas.width / 2, canvas.height / 2 - 20);
-  ctx.font = "20px sans-serif";
-  ctx.fillText("Press R to restart", canvas.width / 2, canvas.height / 2 + 20);
-  if (win) setTimeout(() => document.getElementById("clue").style.display = "block", 1000);
+// --- End game ---
+function endGame(win){
+    gameOver = true;
+    ctx.fillStyle="rgba(0,0,0,0.6)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="white";
+    ctx.textAlign="center";
+    ctx.font=`${28*scaleFactor}px sans-serif`;
+    ctx.fillText(win?"🏁 You made it!":"💥 Curses! Foiled again",canvas.width/2,canvas.height/2-20*scaleFactor);
+    ctx.font=`${20*scaleFactor}px sans-serif`;
+    ctx.fillText("Press R or tap to restart",canvas.width/2,canvas.height/2+20*scaleFactor);
+    if(win) setTimeout(()=>document.getElementById("clue").style.display="block",1000);
 }
 
 // --- Controls ---
-document.addEventListener("keydown", e => {
-  if (e.code === "Space" || e.code === "ArrowUp") {
-    if (!started) { started = true; update(); }
-    if (!gameOver) velocity = jump;
-  }
-  if (e.code === "KeyR" && gameOver) resetGame();
+document.addEventListener("keydown",e=>{
+    if(e.code==="Space"||e.code==="ArrowUp"){
+        if(!started){ started=true; update(); }
+        if(!gameOver) velocity=jump;
+    }
+    if(e.code==="KeyR" && gameOver) resetGame();
 });
 
-// --- Touch controls for smartphones ---
-document.addEventListener("touchstart", e => {
-  e.preventDefault(); // prevent scrolling on touch
+// --- Touch ---
+let touchActive = false;
+document.addEventListener("touchstart",e=>{
+    if(touchActive) return;
+    touchActive=true;
+    e.preventDefault();
+    if(!started){ started=true; update(); return; }
+    if(gameOver){ resetGame(); return; }
+    velocity = jump;
+});
+document.addEventListener("touchend",e=>{ touchActive=false; });
 
-  if (!started) {
-    // Start the game on first tap
-    started = true;
-    update();
-    return;
-  }
+// --- Responsive canvas ---
+function resizeCanvas(){
+    const aspect = 480/640;
+    let w = window.innerWidth;
+    let h = window.innerHeight;
 
-  if (gameOver) {
-    // Restart game if it’s over
+    if(w/h>aspect) w = h*aspect;
+    else h = w/aspect;
+
+    canvas.style.width=w+"px";
+    canvas.style.height=h+"px";
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = 480*dpr;
+    canvas.height = 640*dpr;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(dpr,dpr);
+
+    scaleFactor = canvas.width/480/dpr;
     resetGame();
-    return;
-  }
+}
 
-  // Make the car jump
-  velocity = jump;
-});
-
+window.addEventListener("resize",resizeCanvas);
 
 // --- Init ---
-carImg.onload = () => {
-  buildBackground();
-  resetGame();
+carImg.onload = ()=>{
+    buildBackground();
+    resizeCanvas();
 };
 </script>
 </body>
