@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Flying Car Game - Challenging Track</title>
+  <style>
+    body { margin:0; overflow:hidden; background:#9dd9ff; font-family:sans-serif; }
+    #gameCanvas { display:block; margin:auto; background:linear-gradient(#87ceeb, #ccefff); }
+    #clue {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255,255,255,0.9);
+      padding: 20px 30px;
+      border-radius: 15px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      font-size: 1.2em; text-align: center;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+<canvas id="gameCanvas" width="480" height="640"></canvas>
+<div id="clue">🕵️‍♂️ Clue: Minus stotri.</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+// --- Start screen text ---
+const startText = {
+  title: "🧙 HP 3: The Chamber 🪄",
+  subtitle: "Press SPACE to start your flight to Hogwarts!"
+};
+
+// --- Car image ---
+const carImg = new Image();
+carImg.src = "car.png"; // put car.png in same folder
+
+let carY, velocity, obstacles, frame, gameOver, started, distance;
+const gravity = 0.4;
+const jump = -7;
+const clueDiv = document.getElementById("clue");
+
+// --- Deterministic high-amplitude track ---
+const baseGapY = 250;
+const horizontalSpacing = 300;
+
+// Segments with bigger vertical variation
+const segments = [
+  [-80, -50, -30, -60, -40],    // low section
+  [60, 80, 70, 90],             // high section
+  [-100, -90, -70],              // consecutive low obstacles
+  [0, 100, -80, 50],            // jumps
+  [40, -60, 20, -50, 30]        // mixed
+];
+
+const offsets = [];
+while (offsets.length < 100) segments.forEach(seg => offsets.push(...seg));
+offsets.length = 100;
+
+const track = offsets.map((offset, i) => ({
+  x: 600 + i * horizontalSpacing,
+  gapY: baseGapY + offset
+}));
+
+// --- Reset game ---
+function resetGame() {
+  carY = canvas.height / 2;
+  velocity = 0;
+  frame = 0;
+  gameOver = false;
+  started = false;
+  distance = 0;
+  clueDiv.style.display = "none";
+
+  obstacles = track.map(o => ({ x: o.x, gapY: o.gapY }));
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawStartScreen();
+}
+
+// --- Event listeners ---
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") {
+    if (!started) { started = true; update(); }
+    if (!gameOver) velocity = jump;
+  }
+  if (e.code === "KeyR" && gameOver) resetGame();
+});
+
+// --- Start screen ---
+function drawStartScreen() {
+  ctx.fillStyle = "#9dd9ff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "white";
+  ctx.textAlign = "center";
+
+  ctx.font = "bold 36px sans-serif";
+  ctx.fillText(startText.title, canvas.width / 2, canvas.height / 2 - 40);
+
+  ctx.font = "24px sans-serif";
+  ctx.fillText(startText.subtitle, canvas.width / 2, canvas.height / 2 + 20);
+}
+
+// --- Draw car ---
+function drawCar() {
+  const scale = 0.12;
+  const carWidth = carImg.width * scale;
+  const carHeight = carImg.height * scale;
+  const tilt = velocity * 2 * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(100, carY);
+  ctx.rotate(tilt);
+  ctx.drawImage(carImg, -carWidth / 2, -carHeight / 2, carWidth, carHeight);
+  ctx.restore();
+}
+
+// --- Draw obstacles ---
+function drawObstacles() {
+  ctx.fillStyle = "#64a832";
+  for (const o of obstacles) {
+    ctx.fillRect(o.x, 0, 60, o.gapY - 100);
+    ctx.fillRect(o.x, o.gapY + 100, 60, canvas.height - o.gapY);
+  }
+}
+
+// --- Main update loop ---
+function update() {
+  if (gameOver) return;
+  frame++;
+
+  velocity += gravity;
+  carY += velocity;
+
+  const speed = 3 + frame / 800; // progressive speed
+
+  obstacles.forEach(o => o.x -= speed);
+  obstacles = obstacles.filter(o => o.x > -60);
+
+  distance += speed;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawCar();
+  drawObstacles();
+
+// --- Draw remaining obstacles number ---
+const obstaclesLeft = obstacles.length;
+ctx.fillStyle = "black";
+ctx.font = "bold 40px sans-serif";
+ctx.textAlign = "center";
+ctx.fillText(obstaclesLeft, canvas.width / 2, 120); // lowered down for margin
+
+  // --- Collision detection ---
+  for (const o of obstacles) {
+    if (
+      100 + 25 > o.x &&
+      100 - 25 < o.x + 60 &&
+      (carY - 10 < o.gapY - 100 || carY + 10 > o.gapY + 100)
+    ) {
+      endGame(false);
+      return;
+    }
+  }
+
+  if (carY < 0 || carY > canvas.height) { endGame(false); return; }
+
+  if (obstacles.length === 0) { endGame(true); return; }
+
+  requestAnimationFrame(update);
+}
+
+// --- End game ---
+function endGame(win) {
+  gameOver = true;
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "white";
+  ctx.textAlign = "center";
+  ctx.font = "28px sans-serif";
+
+  if (win) {
+    clueDiv.style.display = "block";
+    ctx.fillText("🏁 You made it!", canvas.width / 2, canvas.height / 2 - 20);
+  } else {
+    ctx.fillText("💥 Curses! Foiled again", canvas.width / 2, canvas.height / 2 - 20);
+  }
+
+  ctx.font = "20px sans-serif";
+  ctx.fillText("Press R to restart", canvas.width / 2, canvas.height / 2 + 20);
+}
+
+// --- Initialize ---
+carImg.onload = () => { resetGame(); };
+</script>
+</body>
+</html>
