@@ -212,19 +212,21 @@ function update(){
     distance += speed;
 
     // --- Draw obstacle counter (mobile-friendly) ---
+// --- Draw obstacle counter (mobile-friendly) ---
 const obstaclesLeft = obstacles.filter(o => o.x > -60 * scaleFactor).length;
 
-// Position slightly below top for visibility
-const counterY = 80 * scaleFactor;
-const counterX = canvas.width / 2;
+const dpr = window.devicePixelRatio || 1;
 
-// Set font scaled
-ctx.font = `bold ${40 * scaleFactor}px sans-serif`;
+// Use DPR-scaled positions and font sizes
+const counterX = 240 * dpr; // center
+const counterY = 80 * dpr;  // slightly below top
+
+ctx.font = `bold ${40 * dpr}px sans-serif`;
 ctx.textAlign = "center";
-ctx.textBaseline = "top"; // ensures Y starts from top
+ctx.textBaseline = "top";
 
 // Draw white border
-ctx.lineWidth = 4 * scaleFactor;
+ctx.lineWidth = 4 * dpr;
 ctx.strokeStyle = "white";
 ctx.strokeText(obstaclesLeft, counterX, counterY);
 
@@ -291,29 +293,38 @@ function resetGame() {
 }
 
 // --- End game ---
-function endGame(win){
+function endGame(win) {
     gameOver = true;
+
+    const dpr = window.devicePixelRatio || 1;
 
     // Dim background
     ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Set text style
-    ctx.fillStyle="white";
-    ctx.textAlign="center";
+    ctx.fillStyle = "white";
+    ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
     // Title message
-    ctx.font = `bold ${28 * scaleFactor}px sans-serif`;
-    ctx.fillText(win ? "🏁 You made it!" : "💥 Curses! Foiled again",
-                 canvas.width / 2, canvas.height / 2 - 20 * scaleFactor);
+    ctx.font = `bold ${28 * dpr}px sans-serif`;
+    ctx.fillText(
+        win ? "🏁 You made it!" : "💥 Curses! Foiled again",
+        240 * dpr,
+        320 * dpr - 20 * dpr
+    );
 
     // Subtitle message
-    ctx.font = `${20 * scaleFactor}px sans-serif`;
-    ctx.fillText("Press R or tap to restart",
-                 canvas.width / 2, canvas.height / 2 + 20 * scaleFactor);
+    ctx.font = `${20 * dpr}px sans-serif`;
+    ctx.fillText(
+        "Press R or tap to restart",
+        240 * dpr,
+        320 * dpr + 20 * dpr
+    );
 
-    if(win) setTimeout(()=>document.getElementById("clue").style.display="block", 1000);
+    // Show clue if won
+    if (win) setTimeout(() => document.getElementById("clue").style.display = "block", 1000);
 }
 
 
