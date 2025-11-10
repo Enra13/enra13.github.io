@@ -31,7 +31,7 @@
 </head>
 <body>
 <canvas id="gameCanvas"></canvas>
-<div id="clue">🕵️‍♂️ Clue: Minus stotri.</div>
+<div id="clue">🕵️‍♂️ Cestitke!!.</div>
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -56,15 +56,20 @@ bgCanvas.width = bgWidth;
 bgCanvas.height = bgHeight;
 const bgCtx = bgCanvas.getContext("2d");
 
+// --- Static starfield (generated once) ---
+const stars = [];
+for (let i = 0; i < 80; i++) {
+  stars.push({
+    x: Math.random() * 1920,       // use bgWidth here for consistency
+    y: Math.random() * 320,        // upper half of screen
+    size: Math.random() * 2 + 1,   // slight size variety
+  });
+}
+
+
 // --- Build static background ---
 function buildBackground() {
-    // Sky gradient
-    const sky = bgCtx.createLinearGradient(0,0,bgWidth,bgHeight);
-    sky.addColorStop(0, "#87ceeb");
-    sky.addColorStop(1, "#ccefff");
-    bgCtx.fillStyle = sky;
-    bgCtx.fillRect(0, 0, bgWidth, bgHeight);
-
+    
     // Hills
     const hillColors = ["#4caf50","#66bb6a","#81c784"];
     hillColors.forEach((color,i) => {
@@ -97,19 +102,39 @@ function buildBackground() {
 }
 
 // --- Draw background with day-to-night transition ---
-function drawBackground(speed=0){
-    backgroundOffset += speed;
-    const offsetX = backgroundOffset % bgWidth;
-    timeOfDay = Math.min(1, distance / 3000); // progress from day to night
+function drawBackground(speed = 0) {
+  backgroundOffset += speed;
+  const offsetX = backgroundOffset % bgWidth;
 
-    // Sky color lerp: day (#87ceeb) -> night (#001d3d)
-    const currentSky = lerpColor("#87ceeb","#001d3d",timeOfDay);
-    ctx.fillStyle = currentSky;
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Day→night progression
+  timeOfDay = Math.min(1, Math.max(0, (distance - 10000) / 24000));
 
-    // Draw static hills and clouds
-    ctx.drawImage(bgCanvas,-offsetX,0,bgWidth*scaleFactor,bgHeight*scaleFactor);
-    ctx.drawImage(bgCanvas,bgWidth-offsetX,0,bgWidth*scaleFactor,bgHeight*scaleFactor);
+  // Draw sky directly (no gradient needed, just lerp color day→night)
+  const currentSky = lerpColor("#87ceeb","#00143d", timeOfDay); // lighter→darker
+  ctx.fillStyle = currentSky;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw static hills and clouds from bgCanvas
+  ctx.drawImage(bgCanvas, -offsetX, 0, bgWidth * scaleFactor, bgHeight * scaleFactor);
+  ctx.drawImage(bgCanvas, bgWidth - offsetX, 0, bgWidth * scaleFactor, bgHeight * scaleFactor);
+
+  // Night overlay (optional, keep for stars and subtle darkness)
+  const nightOverlay = `rgba(0, 20, 60, ${timeOfDay * 0.4})`;
+  ctx.fillStyle = nightOverlay;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Stars (keep as before)
+  if (timeOfDay > 0.4) {
+    const starAlpha = (timeOfDay - 0.4) * 1.5;
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.4 * Math.min(starAlpha, 1)})`;
+    for (const s of stars) {
+      const x = (s.x * scaleFactor - offsetX + bgWidth * scaleFactor) % (bgWidth * scaleFactor);
+      const y = s.y * scaleFactor;
+      ctx.beginPath();
+      ctx.arc(x, y, s.size * scaleFactor, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 }
 
 // --- Obstacles ---
@@ -185,12 +210,29 @@ function update(){
 
     distance += speed;
 
-    // counter
-    const obstaclesLeft = obstacles.filter(o=>o.x>-60*scaleFactor).length;
-    ctx.fillStyle="black";
-    ctx.font=`bold ${40*scaleFactor}px sans-serif`;
-    ctx.textAlign="center";
-    ctx.fillText(obstaclesLeft,canvas.width/2,100*scaleFactor);
+    // --- Draw obstacle counter (mobile-friendly) ---
+const obstaclesLeft = obstacles.filter(o => o.x > -60 * scaleFactor).length;
+
+// Position slightly below top for visibility
+const counterY = 80 * scaleFactor;
+const counterX = canvas.width / 2;
+
+// Set font scaled
+ctx.font = `bold ${40 * scaleFactor}px sans-serif`;
+ctx.textAlign = "center";
+ctx.textBaseline = "top"; // ensures Y starts from top
+
+// Draw white border
+ctx.lineWidth = 4 * scaleFactor;
+ctx.strokeStyle = "white";
+ctx.strokeText(obstaclesLeft, counterX, counterY);
+
+// Fill with black
+ctx.fillStyle = "black";
+ctx.fillText(obstaclesLeft, counterX, counterY);
+
+
+
 
     // collisions
     const obsW = 60*scaleFactor;
@@ -250,16 +292,29 @@ function resetGame() {
 // --- End game ---
 function endGame(win){
     gameOver = true;
-    ctx.fillStyle="rgba(0,0,0,0.6)";
+
+    // Dim background
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // Set text style
     ctx.fillStyle="white";
     ctx.textAlign="center";
-    ctx.font=`${28*scaleFactor}px sans-serif`;
-    ctx.fillText(win?"🏁 You made it!":"💥 Curses! Foiled again",canvas.width/2,canvas.height/2-20*scaleFactor);
-    ctx.font=`${20*scaleFactor}px sans-serif`;
-    ctx.fillText("Press R or tap to restart",canvas.width/2,canvas.height/2+20*scaleFactor);
-    if(win) setTimeout(()=>document.getElementById("clue").style.display="block",1000);
+    ctx.textBaseline = "middle";
+
+    // Title message
+    ctx.font = `bold ${28 * scaleFactor}px sans-serif`;
+    ctx.fillText(win ? "🏁 You made it!" : "💥 Curses! Foiled again",
+                 canvas.width / 2, canvas.height / 2 - 20 * scaleFactor);
+
+    // Subtitle message
+    ctx.font = `${20 * scaleFactor}px sans-serif`;
+    ctx.fillText("Press R or tap to restart",
+                 canvas.width / 2, canvas.height / 2 + 20 * scaleFactor);
+
+    if(win) setTimeout(()=>document.getElementById("clue").style.display="block", 1000);
 }
+
 
 // --- Controls ---
 document.addEventListener("keydown",e=>{
