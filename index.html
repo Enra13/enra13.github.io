@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Flying Car Game - Hogwarts Flight</title>
 <style>
   body {
@@ -325,17 +326,27 @@ document.addEventListener("keydown",e=>{
     if(e.code==="KeyR" && gameOver) resetGame();
 });
 
-// --- Touch ---
+// --- Touch input ---
 let touchActive = false;
-document.addEventListener("touchstart",e=>{
-    if(touchActive) return;
-    touchActive=true;
+
+document.addEventListener("touchstart", e => {
+    // prevent default zoom/scroll
     e.preventDefault();
-    if(!started){ started=true; update(); return; }
-    if(gameOver){ resetGame(); return; }
+
+    if (touchActive) return;
+    touchActive = true;
+
+    if (!started) { started = true; update(); return; }
+    if (gameOver) { resetGame(); return; }
+
     velocity = jump;
 });
-document.addEventListener("touchend",e=>{ touchActive=false; });
+
+document.addEventListener("touchend", e => {
+    touchActive = false;
+});
+
+
 
 // --- Responsive canvas ---
 function resizeCanvas() {
