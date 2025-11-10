@@ -32,11 +32,12 @@
 </head>
 <body>
 <canvas id="gameCanvas"></canvas>
-<div id="clue">🕵️‍♂️ Cestitke!!.</div>
+<div id="clue">🕵️‍♂️ Cestitke!!</div>
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+// --- Images ---
 const carImg = new Image();
 carImg.src = "car.png";
 
@@ -63,22 +64,44 @@ for (let i = 0; i < 80; i++) {
   stars.push({
     x: Math.random() * bgWidth,
     y: Math.random() * 320,
-    size: Math.random() * 2 + 1,
+    size: Math.random() * 2 + 1
   });
+}
+
+// --- Obstacles track ---
+const baseGapY = 250;
+const horizontalSpacing = 300;
+const offsets = [];
+const segments = [
+  [-80,-50,-30,-60,-40],
+  [60,80,70,90],
+  [-100,-90,-70],
+  [0,100,-80,50],
+  [40,-60,20,-50,30]
+];
+while (offsets.length < 100) segments.forEach(s => offsets.push(...s));
+offsets.length = 100;
+const track = offsets.map((o,i)=>({x:600+i*horizontalSpacing,gapY:baseGapY+o}));
+
+// --- Utilities ---
+function lerpColor(a,b,t){
+  const ah=parseInt(a.replace('#',''),16),ar=(ah>>16)&0xff,ag=(ah>>8)&0xff,ab=ah&0xff;
+  const bh=parseInt(b.replace('#',''),16),br=(bh>>16)&0xff,bg=(bh>>8)&0xff,bb=bh&0xff;
+  const rr=Math.round(ar+(br-ar)*t),rg=Math.round(ag+(bg-ag)*t),rb=Math.round(ab+(bb-ab)*t);
+  return `rgb(${rr},${rg},${rb})`;
 }
 
 // --- Build static background ---
 function buildBackground() {
-  // Hills
   const hillColors = ["#4caf50","#66bb6a","#81c784"];
-  hillColors.forEach((color,i) => {
+  hillColors.forEach((color,i)=>{
     const amplitude = 40 + i*25;
     const offsetY = 100 - i*20;
     bgCtx.fillStyle = color;
     bgCtx.beginPath();
     bgCtx.moveTo(0,bgHeight);
     for(let x=0;x<=bgWidth;x+=20){
-      const y = bgHeight - (amplitude * Math.sin((x + i*100)*0.004)) - offsetY;
+      const y = bgHeight - (amplitude * Math.sin((x+i*100)*0.004)) - offsetY;
       bgCtx.lineTo(x,y);
     }
     bgCtx.lineTo(bgWidth,bgHeight);
@@ -101,67 +124,42 @@ function buildBackground() {
 }
 
 // --- Draw background ---
-function drawBackground(speed = 0) {
+function drawBackground(speed=0){
   backgroundOffset += speed;
   const offsetX = backgroundOffset % bgWidth;
 
-  timeOfDay = Math.min(1, Math.max(0, (distance - 10000) / 24000));
-
+  timeOfDay = Math.min(1, Math.max(0,(distance-10000)/24000));
   const currentSky = lerpColor("#87ceeb","#00143d", timeOfDay);
   ctx.fillStyle = currentSky;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0,0,480,640);
 
-  ctx.drawImage(bgCanvas, -offsetX, 0, bgWidth * scaleFactor, bgHeight * scaleFactor);
-  ctx.drawImage(bgCanvas, bgWidth - offsetX, 0, bgWidth * scaleFactor, bgHeight * scaleFactor);
+  ctx.drawImage(bgCanvas,-offsetX,0,bgWidth*scaleFactor,bgHeight*scaleFactor);
+  ctx.drawImage(bgCanvas,bgWidth-offsetX,0,bgWidth*scaleFactor,bgHeight*scaleFactor);
 
-  const nightOverlay = `rgba(0, 20, 60, ${timeOfDay * 0.4})`;
+  const nightOverlay = `rgba(0,20,60,${timeOfDay*0.4})`;
   ctx.fillStyle = nightOverlay;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0,0,480,640);
 
-  if (timeOfDay > 0.4) {
-    const starAlpha = (timeOfDay - 0.4) * 1.5;
-    ctx.fillStyle = `rgba(255, 255, 255, ${0.4 * Math.min(starAlpha, 1)})`;
-    for (const s of stars) {
-      const x = (s.x * scaleFactor - offsetX + bgWidth * scaleFactor) % (bgWidth * scaleFactor);
-      const y = s.y * scaleFactor;
+  if(timeOfDay>0.4){
+    ctx.fillStyle = `rgba(255,255,255,${0.4*Math.min((timeOfDay-0.4)*1.5,1)})`;
+    for(const s of stars){
+      const x = (s.x*scaleFactor-offsetX+bgWidth*scaleFactor)%(bgWidth*scaleFactor);
+      const y = s.y*scaleFactor;
       ctx.beginPath();
-      ctx.arc(x, y, s.size * scaleFactor, 0, Math.PI * 2);
+      ctx.arc(x,y,s.size*scaleFactor,0,Math.PI*2);
       ctx.fill();
     }
   }
 }
 
-// --- Obstacles ---
-const baseGapY = 250;
-const horizontalSpacing = 300;
-const offsets = [];
-const segments = [
-    [-80,-50,-30,-60,-40],
-    [60,80,70,90],
-    [-100,-90,-70],
-    [0,100,-80,50],
-    [40,-60,20,-50,30]
-];
-while(offsets.length < 100) segments.forEach(s=>offsets.push(...s));
-offsets.length = 100;
-const track = offsets.map((o,i)=>({x:600+i*horizontalSpacing,gapY:baseGapY+o}));
-
-// --- Utilities ---
-function lerpColor(a,b,t){
-  const ah=parseInt(a.replace('#',''),16),ar=(ah>>16)&0xff,ag=(ah>>8)&0xff,ab=ah&0xff;
-  const bh=parseInt(b.replace('#',''),16),br=(bh>>16)&0xff,bg=(bh>>8)&0xff,bb=bh&0xff;
-  const rr=Math.round(ar+(br-ar)*t),rg=Math.round(ag+(bg-ag)*t),rb=Math.round(ab+(bb-ab)*t);
-  return `rgb(${rr},${rg},${rb})`;
-}
-
 // --- Draw car ---
 function drawCar(){
-  const scale = 0.12 * scaleFactor;
-  const w = carImg.width * scale;
-  const h = carImg.height * scale;
-  const tilt = velocity * 2 * Math.PI / 180;
+  const scale = 0.12*scaleFactor;
+  const w = carImg.width*scale;
+  const h = carImg.height*scale;
+  const tilt = velocity*2*Math.PI/180;
   ctx.save();
-  ctx.translate(100*scaleFactor, carY);
+  ctx.translate(100,carY);
   ctx.rotate(tilt);
   ctx.drawImage(carImg,-w/2,-h/2,w,h);
   ctx.restore();
@@ -169,167 +167,150 @@ function drawCar(){
 
 // --- Draw obstacles ---
 function drawObstacles(){
-  const obsW = 60 * scaleFactor;
-  const obsGap = 100 * scaleFactor;
+  const obsW = 60*scaleFactor;
+  const obsGap = 100*scaleFactor;
   for(const o of obstacles){
     ctx.fillStyle="rgba(240,108,0,0.6)";
     ctx.strokeStyle="black";
     ctx.lineWidth=2*scaleFactor;
-
     ctx.beginPath();
     ctx.rect(o.x,0,obsW,o.gapY-obsGap);
     ctx.fill(); ctx.stroke();
-
     ctx.beginPath();
-    ctx.rect(o.x,o.gapY+obsGap,obsW,canvas.height-o.gapY);
+    ctx.rect(o.x,o.gapY+obsGap,obsW,640-o.gapY);
     ctx.fill(); ctx.stroke();
   }
 }
 
-// --- Game loop (delta-time) ---
+// --- Game loop ---
 let lastTime = 0;
-function update(timestamp) {
+function update(timestamp){
   if(gameOver) return;
   if(!lastTime) lastTime = timestamp;
-  const delta = (timestamp - lastTime) / 1000;
+  const delta = (timestamp-lastTime)/1000;
   lastTime = timestamp;
 
-  velocity += gravity * delta * 60;
-  carY += velocity * delta * 60;
+  velocity += gravity*delta*60;
+  carY += velocity*delta*60;
 
-  const speed = (3 + frame/800) * delta * 60;
-  obstacles.forEach(o => o.x -= speed * scaleFactor);
+  const speed = (3 + frame/800)*delta*60;
+  obstacles.forEach(o=>o.x-=speed*scaleFactor);
   distance += speed;
-
   frame++;
 
-  drawBackground(speed * scaleFactor);
+  drawBackground(speed*scaleFactor);
   drawObstacles();
   drawCar();
 
-  // Draw obstacle counter
-  const obstaclesLeft = obstacles.filter(o => o.x > -60 * scaleFactor).length;
-  const dpr = window.devicePixelRatio || 1;
-  const counterX = 240 * dpr;
-  const counterY = 80 * dpr;
-  ctx.font = `bold ${40 * dpr}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  ctx.lineWidth = 4 * dpr;
+  // Obstacle counter
+  const obstaclesLeft = obstacles.filter(o => o.x > -60*scaleFactor).length;
+  ctx.font = `bold ${40*scaleFactor}px sans-serif`;
+  ctx.textAlign="center";
+  ctx.textBaseline="top";
+  ctx.lineWidth = 4*scaleFactor;
   ctx.strokeStyle = "white";
-  ctx.strokeText(obstaclesLeft, counterX, counterY);
-  ctx.fillStyle = "black";
-  ctx.fillText(obstaclesLeft, counterX, counterY);
+  ctx.strokeText(obstaclesLeft,240,80);
+  ctx.fillStyle="black";
+  ctx.fillText(obstaclesLeft,240,80);
 
   // Collisions
   const obsW = 60*scaleFactor;
   const obsGap = 100*scaleFactor;
   for(const o of obstacles){
-    if(100*scaleFactor+25*scaleFactor > o.x && 100*scaleFactor-25*scaleFactor < o.x+obsW
-       && (carY-10*scaleFactor<o.gapY-obsGap || carY+10*scaleFactor>o.gapY+obsGap)){
+    if(100-25<o.x+obsW && 100+25>o.x && (carY-10<o.gapY-obsGap || carY+10>o.gapY+obsGap))
       return endGame(false);
-    }
   }
-  if(carY<0 || carY>canvas.height) return endGame(false);
+  if(carY<0||carY>640) return endGame(false);
   if(obstacles.every(o=>o.x<-obsW)) return endGame(true);
 
   requestAnimationFrame(update);
 }
 
-// --- Reset game ---
+// --- Reset & End game ---
 const startText = {
-    title:"🧙 HP 3: The Chamber 🪄 V8",
-    subtitle:"GCBF1BN, by Enra13 & Ammy Holmes",
-    description:"Press SPACE or tap to start your flight to Hogwarts!"
+  title:"🧙 HP 3: The Chamber 🪄 V9",
+  subtitle:"GCBF1BN, by Enra13 & Ammy Holmes",
+  description:"Press SPACE or tap to start your flight!"
 };
-function resetGame() {
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
 
-  carY = canvas.height / 2 / (window.devicePixelRatio || 1);
-  velocity = 0;
+function resetGame(){
+  carY = 320;         // center
+  velocity = 0;        // no initial movement
   frame = 0;
   backgroundOffset = 0;
   gameOver = false;
   started = false;
-  obstacles = track.map(o => ({ ...o }));
   distance = 0;
+  lastTime = 0;        // <--- reset timestamp for delta time
+  obstacles = track.map(o=>({...o}));
+  document.getElementById("clue").style.display="none";
 
-  ctx.fillStyle = "#87ceeb";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = "white";
-  ctx.textAlign = "center";
-
-  ctx.font = `bold ${36 * scaleFactor}px sans-serif`;
-  ctx.fillText(startText.title, canvas.width / 2 / (window.devicePixelRatio || 1), canvas.height / 2 / (window.devicePixelRatio || 1) - 40 * scaleFactor);
-  ctx.font = `${24 * scaleFactor}px sans-serif`;
-  ctx.fillText(startText.subtitle, canvas.width / 2 / (window.devicePixelRatio || 1), canvas.height / 2 / (window.devicePixelRatio || 1));
-  ctx.font = `${18 * scaleFactor}px sans-serif`;
-  ctx.fillText(startText.description, canvas.width / 2 / (window.devicePixelRatio || 1), canvas.height / 2 / (window.devicePixelRatio || 1) + 30 * scaleFactor);
+  // Draw start screen
+  ctx.fillStyle="#87ceeb";
+  ctx.fillRect(0,0,480,640);
+  ctx.fillStyle="white";
+  ctx.textAlign="center";
+  ctx.font=`bold ${36*scaleFactor}px sans-serif`;
+  ctx.fillText(startText.title,240,280);
+  ctx.font=`${24*scaleFactor}px sans-serif`;
+  ctx.fillText(startText.subtitle,240,320);
+  ctx.font=`${18*scaleFactor}px sans-serif`;
+  ctx.fillText(startText.description,240,360);
 }
 
-// --- End game ---
-function endGame(win) {
-    gameOver = true;
-    const dpr = window.devicePixelRatio || 1;
 
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+function endGame(win){
+  gameOver=true;
+  ctx.fillStyle="rgba(0,0,0,0.6)";
+  ctx.fillRect(0,0,480,640);
 
-    ctx.fillStyle = "white";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `bold ${28 * dpr}px sans-serif`;
-    ctx.fillText(win ? "🏁 You made it!" : "💥 Curses! Foiled again", 240 * dpr, 320 * dpr - 20 * dpr);
-    ctx.font = `${20 * dpr}px sans-serif`;
-    ctx.fillText("Press R or tap to restart", 240 * dpr, 320 * dpr + 20 * dpr);
+  ctx.fillStyle="white";
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  ctx.font=`bold ${28*scaleFactor}px sans-serif`;
+  ctx.fillText(win?"🏁 You made it!":"💥 Curses! Foiled again",240,300);
+  ctx.font=`${20*scaleFactor}px sans-serif`;
+  ctx.fillText("Press R or tap to restart",240,340);
 
-    if(win) setTimeout(()=>document.getElementById("clue").style.display="block", 1000);
+  if(win) setTimeout(()=>document.getElementById("clue").style.display="block",1000);
 }
 
 // --- Controls ---
 document.addEventListener("keydown",e=>{
-    if(e.code==="Space"||e.code==="ArrowUp"){
-        if(!started){ started=true; requestAnimationFrame(update); }
-        if(!gameOver) velocity=jump;
-    }
-    if(e.code==="KeyR" && gameOver) resetGame();
+  if(e.code==="Space"||e.code==="ArrowUp"){
+    if(!started){ started=true; requestAnimationFrame(update); }
+    if(!gameOver) velocity=jump;
+  }
+  if(e.code==="KeyR" && gameOver) resetGame();
 });
-
-// --- Touch input ---
-document.addEventListener("touchstart", e => {
-    e.preventDefault();
-    if(!started){ started=true; requestAnimationFrame(update); return; }
-    if(gameOver){ resetGame(); return; }
-    velocity = jump;
+document.addEventListener("touchstart",e=>{
+  e.preventDefault();
+  if(!started){ started=true; requestAnimationFrame(update); return; }
+  if(gameOver){ resetGame(); return; }
+  velocity=jump;
 });
 
 // --- Responsive canvas ---
-function resizeCanvas() {
-  const aspect = 480 / 640;
-  let w = window.innerWidth;
-  let h = window.innerHeight;
-  if (w / h > aspect) w = h * aspect;
-  else h = w / aspect;
-  canvas.style.width = w + "px";
-  canvas.style.height = h + "px";
-
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = 480 * dpr;
-  canvas.height = 640 * dpr;
-
+function resizeCanvas(){
+  const aspect=480/640;
+  let w=window.innerWidth, h=window.innerHeight;
+  if(w/h>aspect) w=h*aspect; else h=w/aspect;
+  canvas.style.width=w+"px";
+  canvas.style.height=h+"px";
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=480*dpr;
+  canvas.height=640*dpr;
   ctx.setTransform(1,0,0,1,0,0);
   ctx.scale(dpr,dpr);
-  scaleFactor = canvas.width / 480 / dpr;
+  scaleFactor = canvas.width/480/dpr;
   resetGame();
 }
 window.addEventListener("resize",resizeCanvas);
 
 // --- Init ---
 carImg.onload = ()=>{
-    buildBackground();
-    resizeCanvas();
+  buildBackground();
+  resizeCanvas();
 };
 </script>
 </body>
