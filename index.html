@@ -214,26 +214,37 @@ const startText = {
     description:"Press SPACE or tap to start your flight to Hogwarts!"
 };
 
-function resetGame(){
-    carY = canvas.height/2;
-    velocity = 0;
-    frame = 0;
-    backgroundOffset = 0;
-    gameOver = false;
-    started = false;
-    obstacles = track.map(o=>({...o}));
-    distance = 0;
 
-    ctx.fillStyle="#87ceeb";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle="white";
-    ctx.textAlign="center";
-    ctx.font=`bold ${36*scaleFactor}px sans-serif`;
-    ctx.fillText(startText.title,canvas.width/2,canvas.height/2-40*scaleFactor);
-    ctx.font=`${24*scaleFactor}px sans-serif`;
-    ctx.fillText(startText.subtitle,canvas.width/2,canvas.height/2);
-    ctx.font=`${18*scaleFactor}px sans-serif`;
-    ctx.fillText(startText.description,canvas.width/2,canvas.height/2+30*scaleFactor);
+function resetGame() {
+  // Reset transform so we draw in correct coordinate space
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+
+  carY = canvas.height / 2 / (window.devicePixelRatio || 1);
+  velocity = 0;
+  frame = 0;
+  backgroundOffset = 0;
+  gameOver = false;
+  started = false;
+  obstacles = track.map(o => ({ ...o }));
+  distance = 0;
+
+  // Clear screen
+  ctx.fillStyle = "#87ceeb";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw visible title text
+  ctx.fillStyle = "white";
+  ctx.textAlign = "center";
+
+  ctx.font = `bold ${36 * scaleFactor}px sans-serif`;
+  ctx.fillText(startText.title, canvas.width / 2 / (window.devicePixelRatio || 1), canvas.height / 2 / (window.devicePixelRatio || 1) - 40 * scaleFactor);
+
+  ctx.font = `${24 * scaleFactor}px sans-serif`;
+  ctx.fillText(startText.subtitle, canvas.width / 2 / (window.devicePixelRatio || 1), canvas.height / 2 / (window.devicePixelRatio || 1));
+
+  ctx.font = `${18 * scaleFactor}px sans-serif`;
+  ctx.fillText(startText.description, canvas.width / 2 / (window.devicePixelRatio || 1), canvas.height / 2 / (window.devicePixelRatio || 1) + 30 * scaleFactor);
 }
 
 // --- End game ---
@@ -272,25 +283,29 @@ document.addEventListener("touchstart",e=>{
 document.addEventListener("touchend",e=>{ touchActive=false; });
 
 // --- Responsive canvas ---
-function resizeCanvas(){
-    const aspect = 480/640;
-    let w = window.innerWidth;
-    let h = window.innerHeight;
+function resizeCanvas() {
+  const aspect = 480 / 640;
+  let w = window.innerWidth;
+  let h = window.innerHeight;
 
-    if(w/h>aspect) w = h*aspect;
-    else h = w/aspect;
+  if (w / h > aspect) w = h * aspect;
+  else h = w / aspect;
 
-    canvas.style.width=w+"px";
-    canvas.style.height=h+"px";
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
 
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = 480*dpr;
-    canvas.height = 640*dpr;
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.scale(dpr,dpr);
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = 480 * dpr;
+  canvas.height = 640 * dpr;
 
-    scaleFactor = canvas.width/480/dpr;
-    resetGame();
+  // Apply scale correctly
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+
+  scaleFactor = canvas.width / 480 / dpr;
+
+  // Now that scaling is correct, reset the game display
+  resetGame();
 }
 
 window.addEventListener("resize",resizeCanvas);
