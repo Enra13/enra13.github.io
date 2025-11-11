@@ -36,6 +36,9 @@
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+const happyFace = new Image();
+happyFace.src = "happyFace.png"; // Make sure this is high-res (2× or 3×)
+
 
 // --- Images ---
 const carImg = new Image();
@@ -49,6 +52,7 @@ let backgroundOffset = 0;
 let timeOfDay = 0;
 let distance = 0;
 let scaleFactor = 1;
+let winState = false;
 
 // --- Background offscreen canvas ---
 const bgWidth = 1920;
@@ -233,62 +237,149 @@ const startText = {
   description:"Press SPACE or tap to start your flight!"
 };
 
-function resetGame(){
-  carY = 320;         // center
-  velocity = 0;        // no initial movement
+function drawWinImage() {
+  const dpr = window.devicePixelRatio || 1;
+  const canvasWidth = canvas.width / dpr;
+  const canvasHeight = canvas.height / dpr;
+
+  const imgAspect = happyFace.width / happyFace.height;
+  const canvasAspect = canvasWidth / canvasHeight;
+
+  let drawWidth, drawHeight, offsetX, offsetY;
+
+  if (imgAspect > canvasAspect) {
+    drawWidth = canvasWidth;
+    drawHeight = canvasWidth / imgAspect;
+    offsetX = 0;
+    offsetY = (canvasHeight - drawHeight)/2;
+  } else {
+    drawHeight = canvasHeight;
+    drawWidth = canvasHeight * imgAspect;
+    offsetX = (canvasWidth - drawWidth)/2;
+    offsetY = 0;
+  }
+
+  ctx.drawImage(happyFace, offsetX, offsetY, drawWidth, drawHeight);
+}
+
+
+function resetGame() {
+  carY = 320;
+  velocity = 0;
   frame = 0;
   backgroundOffset = 0;
   gameOver = false;
   started = false;
   distance = 0;
-  lastTime = 0;        // <--- reset timestamp for delta time
-  obstacles = track.map(o=>({...o}));
-  document.getElementById("clue").style.display="none";
+  lastTime = 0;
+  obstacles = track.map(o => ({ ...o }));
+  document.getElementById("clue").style.display = "none";
 
-  // Draw start screen
-  ctx.fillStyle="#87ceeb";
-  ctx.fillRect(0,0,480,640);
-  ctx.fillStyle="white";
-  ctx.textAlign="center";
-  ctx.font=`bold ${36*scaleFactor}px sans-serif`;
-  ctx.fillText(startText.title,240,280);
-  ctx.font=`${24*scaleFactor}px sans-serif`;
-  ctx.fillText(startText.subtitle,240,320);
-  ctx.font=`${18*scaleFactor}px sans-serif`;
-  ctx.fillText(startText.description,240,360);
+  // --- Dark dusk gradient background ---
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, "#0b1f3f");
+  gradient.addColorStop(0.5, "#1a3a6d");
+  gradient.addColorStop(1, "#5c3b1e");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // --- Text ---
+  ctx.fillStyle = "white";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const logicalWidth = 480;
+  const logicalHeight = 640;
+  const dpr = window.devicePixelRatio || 1;
+  const scale = Math.min(
+    (canvas.width / dpr) / logicalWidth,
+    (canvas.height / dpr) / logicalHeight
+  );
+
+  const centerX = logicalWidth / 2;
+  const startY = 220; // starting Y for title block
+
+  // Title
+  ctx.font = `bold ${32 * scale}px sans-serif`;
+  ctx.fillText("🧙 HP 3: The Chamber 🪄 V9", centerX, startY * scale);
+
+  // Code below title (same size)
+  ctx.fillText("GCBF1BN", centerX, (startY + 40) * scale);
+
+  // Author (smaller)
+  ctx.font = `${20 * scale}px sans-serif`;
+  ctx.fillText("by Enra13 & Ammy Holmes", centerX, (startY + 80) * scale);
+
+  // Description (smaller again)
+  ctx.font = `${16 * scale}px sans-serif`;
+  ctx.fillText("Press SPACE or tap to start your flight!", centerX, (startY + 120) * scale);
 }
 
 
-function endGame(win){
-  gameOver=true;
-  ctx.fillStyle="rgba(0,0,0,0.6)";
-  ctx.fillRect(0,0,480,640);
 
-  ctx.fillStyle="white";
-  ctx.textAlign="center";
-  ctx.textBaseline="middle";
-  ctx.font=`bold ${28*scaleFactor}px sans-serif`;
-  ctx.fillText(win?"🏁 You made it!":"💥 Curses! Foiled again",240,300);
-  ctx.font=`${20*scaleFactor}px sans-serif`;
-  ctx.fillText("Press R or tap to restart",240,340);
 
-  if(win) setTimeout(()=>document.getElementById("clue").style.display="block",1000);
+
+function endGame(win) {
+  gameOver = true;
+  winState = win;
+
+  // Dim background
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (win) {
+    // Draw happyFace and keep it displayed
+    if (happyFace.complete) {
+      drawWinImage();
+    } else {
+      happyFace.onload = drawWinImage;
+    }
+
+    // Don't allow restart, clue is in the image itself
+    document.getElementById("clue").style.display = "none"; 
+  } else {
+    // Losing text
+    ctx.fillStyle = "white";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `bold ${28 * scaleFactor}px sans-serif`;
+    ctx.fillText("💥 Curses! Foiled again", 240, 300);
+    ctx.font = `${20 * scaleFactor}px sans-serif`;
+    ctx.fillText("Press R or tap to restart", 240, 340);
+  }
 }
+
 
 // --- Controls ---
-document.addEventListener("keydown",e=>{
-  if(e.code==="Space"||e.code==="ArrowUp"){
-    if(!started){ started=true; requestAnimationFrame(update); }
-    if(!gameOver) velocity=jump;
+document.addEventListener("keydown", e => {
+  if (e.code === "Space" || e.code === "ArrowUp") {
+    if (!started) {
+      started = true;
+      requestAnimationFrame(update);
+    } else if (!gameOver) {
+      velocity = jump;
+    }
   }
-  if(e.code==="KeyR" && gameOver) resetGame();
+  if (e.code === "KeyR" && gameOver && !winState) {
+    resetGame();
+  }
 });
-document.addEventListener("touchstart",e=>{
+
+// --- Touch input ---
+document.addEventListener("touchstart", e => {
   e.preventDefault();
-  if(!started){ started=true; requestAnimationFrame(update); return; }
-  if(gameOver){ resetGame(); return; }
-  velocity=jump;
+  if (!started) {
+    started = true;
+    requestAnimationFrame(update);
+    return;
+  }
+  if (gameOver && !winState) {
+    resetGame();
+    return;
+  }
+  if (!gameOver) velocity = jump;
 });
+
 
 // --- Responsive canvas ---
 function resizeCanvas(){
