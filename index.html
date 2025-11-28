@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Flappy Car</title>
+<title>Flying Car Game - Hogwarts Flight</title>
 <style>
   body {
     margin: 0;
@@ -36,9 +36,12 @@
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-const happyFace = new Image();
-happyFace.src = "happyFace.png"; // Make sure this is high-res (2× or 3×)
 
+const happyFace = new Image();
+happyFace.src = "happyFace.png";
+
+const startImg = new Image();
+startImg.src = "startScreen.png"; // NEW
 
 // --- Images ---
 const carImg = new Image();
@@ -72,7 +75,7 @@ for (let i = 0; i < 80; i++) {
   });
 }
 
-// --- Obstacles track ---
+// --- Track ---
 const baseGapY = 250;
 const horizontalSpacing = 300;
 const offsets = [];
@@ -113,7 +116,6 @@ function buildBackground() {
     bgCtx.fill();
   });
 
-  // Clouds
   bgCtx.fillStyle="white";
   for(let i=0;i<20;i++){
     const x = Math.random()*bgWidth;
@@ -206,7 +208,6 @@ function update(timestamp){
   drawObstacles();
   drawCar();
 
-  // Obstacle counter
   const obstaclesLeft = obstacles.filter(o => o.x > -60*scaleFactor).length;
   ctx.font = `bold ${40*scaleFactor}px sans-serif`;
   ctx.textAlign="center";
@@ -217,7 +218,6 @@ function update(timestamp){
   ctx.fillStyle="black";
   ctx.fillText(obstaclesLeft,240,80);
 
-  // Collisions
   const obsW = 60*scaleFactor;
   const obsGap = 100*scaleFactor;
   for(const o of obstacles){
@@ -230,13 +230,7 @@ function update(timestamp){
   requestAnimationFrame(update);
 }
 
-// --- Reset & End game ---
-const startText = {
-  title:"🧙 HP 3: The Chamber 🪄 V10",
-  subtitle:"GCBF1BN, by Enra13 & Ammy Holmes",
-  description:"Press SPACE or tap to start your flight!"
-};
-
+// --- WIN image drawing ---
 function drawWinImage() {
   const dpr = window.devicePixelRatio || 1;
   const canvasWidth = canvas.width / dpr;
@@ -263,6 +257,34 @@ function drawWinImage() {
 }
 
 
+// --- NEW: Draw START IMAGE ---
+function drawStartImage() {
+  const dpr = window.devicePixelRatio || 1;
+  const canvasWidth = canvas.width / dpr;
+  const canvasHeight = canvas.height / dpr;
+
+  const imgAspect = startImg.width / startImg.height;
+  const canvasAspect = canvasWidth / canvasHeight;
+
+  let drawWidth, drawHeight, offsetX, offsetY;
+
+  if (imgAspect > canvasAspect) {
+    drawWidth = canvasWidth;
+    drawHeight = canvasWidth / imgAspect;
+    offsetX = 0;
+    offsetY = (canvasHeight - drawHeight)/2;
+  } else {
+    drawHeight = canvasHeight;
+    drawWidth = canvasHeight * imgAspect;
+    offsetX = (canvasWidth - drawWidth)/2;
+    offsetY = 0;
+  }
+
+  ctx.drawImage(startImg, offsetX, offsetY, drawWidth, drawHeight);
+}
+
+
+// --- Reset ---
 function resetGame() {
   carY = 320;
   velocity = 0;
@@ -273,99 +295,51 @@ function resetGame() {
   distance = 0;
   lastTime = 0;
   obstacles = track.map(o => ({ ...o }));
+  winState = false;
   document.getElementById("clue").style.display = "none";
 
-  // --- Dark dusk gradient background ---
-  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  gradient.addColorStop(0, "#0b1f3f");
-  gradient.addColorStop(0.5, "#1a3a6d");
-  gradient.addColorStop(1, "#5c3b1e");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // --- Text ---
-  ctx.fillStyle = "white";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  const logicalWidth = 480;
-  const logicalHeight = 640;
-  const dpr = window.devicePixelRatio || 1;
-  const scale = Math.min(
-    (canvas.width / dpr) / logicalWidth,
-    (canvas.height / dpr) / logicalHeight
-  );
-
-  const centerX = logicalWidth / 2;
-  const startY = 220; // starting Y for title block
-
-  // Title
-  ctx.font = `bold ${32 * scale}px sans-serif`;
-  ctx.fillText("🧙 HP 3: The Chamber 🪄 V10", centerX, startY * scale);
-
-  // Code below title (same size)
-  ctx.fillText("GCBF1BN", centerX, (startY + 40) * scale);
-
-  // Author (smaller)
-  ctx.font = `${20 * scale}px sans-serif`;
-  ctx.fillText("by Enra13 & Ammy Holmes", centerX, (startY + 80) * scale);
-
-  // Description (smaller again)
-  ctx.font = `${16 * scale}px sans-serif`;
-  ctx.fillText("Press SPACE or tap to start your flight!", centerX, (startY + 120) * scale);
+  if (startImg.complete) drawStartImage();
+  else startImg.onload = drawStartImage;
 }
 
 
-
-
-
+// --- End game ---
 function endGame(win) {
   gameOver = true;
   winState = win;
 
-  // Dim background
-  ctx.fillStyle = "rgba(0,0,0,0.6)";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle="rgba(0,0,0,0.6)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
   if (win) {
-    // Draw happyFace and keep it displayed
-    if (happyFace.complete) {
-      drawWinImage();
-    } else {
-      happyFace.onload = drawWinImage;
-    }
-
-    // Don't allow restart, clue is in the image itself
-    document.getElementById("clue").style.display = "none"; 
-  } else {
-    // Losing text
-    ctx.fillStyle = "white";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `bold ${28 * scaleFactor}px sans-serif`;
-    ctx.fillText("💥 Curses! Foiled again", 240, 300);
-    ctx.font = `${20 * scaleFactor}px sans-serif`;
-    ctx.fillText("Press R or tap to restart", 240, 340);
+    if (happyFace.complete) drawWinImage();
+    else happyFace.onload = drawWinImage;
+    return;
   }
+
+  ctx.fillStyle="white";
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  ctx.font=`bold ${28*scaleFactor}px sans-serif`;
+  ctx.fillText("💥 Curses! Foiled again",240,300);
+  ctx.font=`${20*scaleFactor}px sans-serif`;
+  ctx.fillText("Press R or tap to restart",240,340);
 }
 
 
 // --- Controls ---
 document.addEventListener("keydown", e => {
-  if (e.code === "Space" || e.code === "ArrowUp") {
-    if (!started) {
-      started = true;
-      requestAnimationFrame(update);
-    } else if (!gameOver) {
-      velocity = jump;
-    }
+  if (!started && (e.code==="Space"||e.code==="ArrowUp")) {
+    started = true;
+    requestAnimationFrame(update);
+    return;
   }
-  if (e.code === "KeyR" && gameOver && !winState) {
-    resetGame();
+  if (!gameOver && (e.code==="Space"||e.code==="ArrowUp")) {
+    velocity = jump;
   }
+  if (gameOver && !winState && e.code==="KeyR") resetGame();
 });
 
-// --- Touch input ---
 document.addEventListener("touchstart", e => {
   e.preventDefault();
   if (!started) {
@@ -404,5 +378,6 @@ carImg.onload = ()=>{
   resizeCanvas();
 };
 </script>
+
 </body>
 </html>
